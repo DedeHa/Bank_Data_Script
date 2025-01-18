@@ -1,7 +1,7 @@
 """
-TYPE:           !/usr/bin/env python3 
+#!/usr/bin/env python3
 
-FILENAME :      TimeSheetAlgo.py             
+FILENAME :      bank_data_extract.py             
 
 AUTHOR :        Dennis Hartel        
 
@@ -9,7 +9,6 @@ START DATE :    18.01.2025
 
 DESCRIPTION :   Automatic bank sheet data extraction from PDF files
 
-REMARK: Initial version created with ChatGPT
 
 """
 
@@ -35,7 +34,6 @@ EXTRACTED_DATA_TEMPLATE = {
 # File Paths
 current_folder = os.getcwd()
 sup_folder = os.path.join(current_folder, "sup")
-output_txt_path = os.path.join(sup_folder, "extracted_info.txt")
 
 class PDFProcessor:
     @staticmethod
@@ -44,7 +42,7 @@ class PDFProcessor:
             with open(pdf_path, "rb") as file:
                 reader = PyPDF2.PdfReader(file)
                 text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-            
+                text = "\n".join([text for page in reader.pages if (text := page.extract_text())])
             extracted_data = EXTRACTED_DATA_TEMPLATE.copy()
 
             # Datum extrahieren und formatieren
@@ -53,7 +51,7 @@ class PDFProcessor:
                 extracted_data["Datum"] = f"{date_match.group(3)}{date_match.group(2)}{date_match.group(1)}"
             
             # ISIN extrahieren
-            isin_match = re.search(r"ISIN\s*:\s*([A-Z0-9]{12})", text)
+            isin_match = re.search(r"ISIN\s*:\s*([A-Z]{2}[A-Z0-9]{10})", text)
             if isin_match:
                 extracted_data["ISIN"] = isin_match.group(1)
             
@@ -63,12 +61,12 @@ class PDFProcessor:
                 extracted_data["Depotnummer"] = depot_match.group(1)
             
             # Depotinhaber extrahieren (Herr oder Frau)
-            inhaber_match = re.search(r"(Herrn|Frau)\s*(.*?)\n", text)
+            inhaber_match = re.search(r"(Herrn|Frau)\s*(.*?)(?:\n|$)", text, re.DOTALL)
             if inhaber_match:
-                extracted_data["Konto Inhaber"] = inhaber_match.group(2)
+                extracted_data["Konto Inhaber"] = inhaber_match.group(2).replace("\n", " ").strip()
             
             # Dokumenttyp extrahieren (Spezifische Begriffe)
-            type_match = re.search(r"(Sammelabrechnung|Abrechnung|Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|Storno)", text)
+            type_match = re.search(r"(Sammelabrechnung|Abrechnung|Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|Storno|Dividendenabrechnung|Zinsabrechnung|Steuerbescheinigung|Kontoauszug)", text)
             if type_match:
                 extracted_data["Dokumenttyp"] = type_match.group(1)
             
@@ -78,13 +76,14 @@ class PDFProcessor:
             return None
 
     @staticmethod
-    def process_all_pdfs(folder_path, output_txt_path):
+    def process_all_pdfs(folder_path):
         pdf_files = [f for f in os.listdir(folder_path) if f.endswith(".pdf")]
         extracted_info_list = []
         
         if pdf_files:
-            new_folder = os.path.join(sup_folder, "NEW")
+            new_folder = os.path.join(folder_path, "NEW")
             os.makedirs(new_folder, exist_ok=True)
+            output_txt_path = os.path.join(new_folder, "extracted_info.txt")
         
         for pdf_file in pdf_files:
             pdf_path = os.path.join(folder_path, pdf_file)
@@ -93,8 +92,7 @@ class PDFProcessor:
                 extracted_info_list.append(extracted_info)
                 
                 # Neuen Dateinamen generieren
-                new_filename = f"{extracted_info['Datum']}_{extracted_info['Depotnummer']}_{extracted_info['Dokumenttyp']}_{extracted_info['Konto Inhaber']}_{extracted_info['ISIN']}.pdf"
-                new_filename = new_filename.replace(" ", "_")  # Leerzeichen durch Unterstriche ersetzen
+                new_filename = PDFProcessor.generate_new_filename(extracted_info)
                 new_filepath = os.path.join(new_folder, new_filename)
                 
                 # Datei kopieren und umbenennen
@@ -105,6 +103,16 @@ class PDFProcessor:
                     logging.error(f"Fehler beim Kopieren von {pdf_file}: {e}")
         
         PDFProcessor.save_extracted_info(output_txt_path, extracted_info_list)
+
+    @staticmethod
+    def generate_new_filename(extracted_info):
+        max_length = 50
+        truncated_inhaber = extracted_info['Konto Inhaber'][:max_length]
+        truncated_dokumenttyp = extracted_info['Dokumenttyp'][:max_length]
+        truncated_isin = extracted_info['ISIN'][:max_length]
+        
+        new_filename = f"{extracted_info['Datum']}_{extracted_info['Depotnummer']}_{truncated_dokumenttyp}_{truncated_inhaber}_{truncated_isin}.pdf"
+        return new_filename.replace(" ", "_")
 
     @staticmethod
     def save_extracted_info(output_txt_path, extracted_info_list):
@@ -128,4 +136,4 @@ class PDFProcessor:
             logging.error(f"Fehler beim Speichern der Daten: {e}")
 
 if __name__ == "__main__":
-    PDFProcessor.process_all_pdfs(sup_folder, output_txt_path)
+    PDFProcessor.process_all_pdfs(sup_folder)
