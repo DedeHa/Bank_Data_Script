@@ -1,0 +1,23 @@
+Anzahl Dokumente: 3
+
+Konto Inhaber: Dennis Hartel
+Depotnummer: 1013815164
+ISIN: IE000EFHIFG3
+Datum: 20250101
+Dokumenttyp: Sammelabrechnung
+
+--------------------------------------------------
+Konto Inhaber: Mira Hartel
+Depotnummer: 1013815164
+ISIN: Nicht gefunden
+Datum: 20240115
+Dokumenttyp: Wertpapierabrechnung Kauf
+
+--------------------------------------------------
+Konto Inhaber: Mira Hartel
+Depotnummer: 1013815164
+ISIN: Nicht gefunden
+Datum: 20240131
+Dokumenttyp: Storno
+
+--------------------------------------------------
