@@ -51,8 +51,7 @@ class PDFProcessor:
             if date_match:
                 extracted_data["Datum"] = f"{date_match.group(3)}{date_match.group(2)}{date_match.group(1)}"
             
-            # ISIN extrahieren
-             # ISIN extrahieren (Kauf/Verkauf oder allgemeine ISIN)
+            # ISIN extrahieren (Kauf/Verkauf oder allgemeine ISIN)
             isin_match = re.search(r"(Kauf|Verkauf)\s+.*?\((?P<isin>[A-Z0-9]{12})/[A-Z0-9]+\)", text)
             if not isin_match:
                 isin_match = re.search(r"ISIN\s*:\s*([A-Z]{2}[A-Z0-9]{10})", text)
@@ -122,8 +121,11 @@ class PDFProcessor:
     @staticmethod
     def save_extracted_info(output_txt_path, extracted_info_list):
         result_data = PDFProcessor.generate_result_data(extracted_info_list)
-        PDFProcessor.write_to_file(output_txt_path, result_data)
-
+        try:
+            PDFProcessor.write_to_file(output_txt_path, result_data)
+        except Exception as e:
+            logging.error(f"Fehler beim Speichern der Daten: {e}")
+            
     @staticmethod
     def generate_result_data(extracted_info_list):
         result_data = f"Anzahl Dokumente: {len(extracted_info_list)}\n\n"
