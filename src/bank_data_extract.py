@@ -144,4 +144,5 @@ if __name__ == "__main__":
     if os.path.exists(sup_folder):
         PDFProcessor.process_all_pdfs(sup_folder)
     else:
-        logging.error(f"Ordner {sup_folder} existiert nicht.")
+        logging.warning(f"Ordner {sup_folder} existiert nicht. Verwende aktuellen Pfad.")
+        PDFProcessor.process_all_pdfs(current_folder)
