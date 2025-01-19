@@ -1,14 +1,16 @@
-"""
 #!/usr/bin/env python3
 
+"""
+
 FILENAME :      bank_data_extract.py             
-
 AUTHOR :        Dennis Hartel        
-
 START DATE :    18.01.2025
+VERSION :       1.0
+PYTHON :        3.9.2
 
+REQUIREMENTS :  PyPDF2
 DESCRIPTION :   Automatic bank sheet data extraction from PDF files
-
+STATUS :        In development
 
 """
 
@@ -41,20 +43,23 @@ class PDFProcessor:
         try:
             with open(pdf_path, "rb") as file:
                 reader = PyPDF2.PdfReader(file)
-                text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-                text = "\n".join([text for page in reader.pages if (text := page.extract_text())])
+                text = "\n".join([page.extract_text() for page in reader.pages])
             extracted_data = EXTRACTED_DATA_TEMPLATE.copy()
 
             # Datum extrahieren und formatieren
-            date_match = re.search(r"Frankfurt,\s*(\d{2})\.(\d{2})\.(\d{4})", text)
+            date_match = re.search(r"Frankfurt,\s(\d{2})\.(\d{2})\.(\d{4})", text)
             if date_match:
                 extracted_data["Datum"] = f"{date_match.group(3)}{date_match.group(2)}{date_match.group(1)}"
             
             # ISIN extrahieren
-            isin_match = re.search(r"ISIN\s*:\s*([A-Z]{2}[A-Z0-9]{10})", text)
-            if isin_match:
-                extracted_data["ISIN"] = isin_match.group(1)
+             # ISIN extrahieren (Kauf/Verkauf oder allgemeine ISIN)
+            isin_match = re.search(r"(Kauf|Verkauf)\s+.*?\((?P<isin>[A-Z0-9]{12})/[A-Z0-9]+\)", text)
+            if not isin_match:
+                isin_match = re.search(r"ISIN\s*:\s*([A-Z]{2}[A-Z0-9]{10})", text)
             
+            if isin_match:
+                extracted_data["ISIN"] = isin_match.group("isin") if "isin" in isin_match.groupdict() else isin_match.group(1)
+           
             # Depotnummer extrahieren
             depot_match = re.search(r"Ihre Depotnummer:\s*(\d+)", text)
             if depot_match:
@@ -66,7 +71,7 @@ class PDFProcessor:
                 extracted_data["Konto Inhaber"] = inhaber_match.group(2).replace("\n", " ").strip()
             
             # Dokumenttyp extrahieren (Spezifische Begriffe)
-            type_match = re.search(r"(Sammelabrechnung|Abrechnung|Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|Storno|Dividendenabrechnung|Zinsabrechnung|Steuerbescheinigung|Kontoauszug)", text)
+            type_match = re.search(r"(Sammelabrechnung|Abrechnung|Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|Storno|Dividendenabrechnung|Zinsabrechnung|Steuerbescheinigung|Kontoauszug|Rechnung|Gutschrift|Beleg|Transaktionsübersicht)", text)
             if type_match:
                 extracted_data["Dokumenttyp"] = type_match.group(1)
             
@@ -107,9 +112,9 @@ class PDFProcessor:
     @staticmethod
     def generate_new_filename(extracted_info):
         max_length = 50
-        truncated_inhaber = extracted_info['Konto Inhaber'][:max_length]
-        truncated_dokumenttyp = extracted_info['Dokumenttyp'][:max_length]
-        truncated_isin = extracted_info['ISIN'][:max_length]
+        truncated_inhaber = (extracted_info.get('Konto Inhaber') or 'Unbekannt')[:max_length]
+        truncated_dokumenttyp = (extracted_info.get('Dokumenttyp') or 'Unbekannt')[:max_length]
+        truncated_isin = (extracted_info.get('ISIN') or 'Unbekannt')[:max_length]
         
         new_filename = f"{extracted_info['Datum']}_{extracted_info['Depotnummer']}_{truncated_dokumenttyp}_{truncated_inhaber}_{truncated_isin}.pdf"
         return new_filename.replace(" ", "_")
@@ -136,4 +141,7 @@ class PDFProcessor:
             logging.error(f"Fehler beim Speichern der Daten: {e}")
 
 if __name__ == "__main__":
-    PDFProcessor.process_all_pdfs(sup_folder)
+    if os.path.exists(sup_folder):
+        PDFProcessor.process_all_pdfs(sup_folder)
+    else:
+        logging.error(f"Ordner {sup_folder} existiert nicht.")
