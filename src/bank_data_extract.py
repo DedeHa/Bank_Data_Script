@@ -26,11 +26,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Constants
 DATE_FORMAT = "%Y%m%d"
 EXTRACTED_DATA_TEMPLATE = {
-    "Konto Inhaber": "Nicht gefunden",
-    "Depotnummer": "Nicht gefunden",
-    "ISIN": "Nicht gefunden",
-    "Datum": "Nicht gefunden",
-    "Dokumenttyp": "Nicht gefunden"
+    "Bank": "",
+    "Konto Inhaber": "NA",
+    "Depotnummer": "NA",
+    "ISIN": "NA",
+    "Datum": "NA",
+    "Dokumenttyp": "NA"
 }
 
 # File Paths
@@ -46,8 +47,13 @@ class PDFProcessor:
                 text = "\n".join([page.extract_text() for page in reader.pages])
             extracted_data = EXTRACTED_DATA_TEMPLATE.copy()
 
+            # Bank extrahieren
+            bank_match = re.search(r"(\w{5,}\s+\w{5,})\s+Bank", text)
+            if bank_match:
+                extracted_data["Bank"] = bank_match.group(1)
+
             # Datum extrahieren und formatieren
-            date_match = re.search(r"Frankfurt,\s(\d{2})\.(\d{2})\.(\d{4})", text)
+            date_match = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", text)
             if date_match:
                 extracted_data["Datum"] = f"{date_match.group(3)}{date_match.group(2)}{date_match.group(1)}"
             
@@ -60,7 +66,10 @@ class PDFProcessor:
                 extracted_data["ISIN"] = isin_match.group("isin") if "isin" in isin_match.groupdict() else isin_match.group(1)
            
             # Depotnummer extrahieren
-            depot_match = re.search(r"Ihre Depotnummer:\s*(\d+)", text)
+            depot_match = re.search(r"Depotnummer:\s*(\d+)", text)
+            if not depot_match:
+                depot_match = re.search(r"Depot*?(\d{10})", text)
+            
             if depot_match:
                 extracted_data["Depotnummer"] = depot_match.group(1)
             
@@ -70,7 +79,20 @@ class PDFProcessor:
                 extracted_data["Konto Inhaber"] = inhaber_match.group(2).replace("\n", " ").strip()
             
             # Dokumenttyp extrahieren (Spezifische Begriffe)
-            type_match = re.search(r"(Sammelabrechnung|Abrechnung|Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|Storno|Dividendenabrechnung|Zinsabrechnung|Steuerbescheinigung|Kontoauszug|Rechnung|Gutschrift|Beleg|Transaktionsübersicht)", text)
+            type_pattern = r"""
+                (Sammelabrechnung|
+                Abrechnung|
+                Wertpapierabrechnung\s+(?:Kauf|Verkauf|Vorabpauschale)|
+                Storno|
+                Dividendenabrechnung|
+                Zinsabrechnung|
+                Steuerbescheinigung|
+                Kontoauszug|
+                Rechnung|
+                Gutschrift|
+                Transaktionsübersicht)
+            """
+            type_match = re.search(type_pattern, text, re.VERBOSE)
             if type_match:
                 extracted_data["Dokumenttyp"] = type_match.group(1)
             
@@ -100,11 +122,12 @@ class PDFProcessor:
                 new_filepath = os.path.join(new_folder, new_filename)
                 
                 # Datei kopieren und umbenennen
-                try:
-                    shutil.copy(pdf_path, new_filepath)
-                    logging.info(f"Kopiert: {pdf_file} -> {new_filename}")
-                except Exception as e:
-                    logging.error(f"Fehler beim Kopieren von {pdf_file}: {e}")
+                if not os.getenv("CODESPACES"):
+                    try:
+                        shutil.copy(pdf_path, new_filepath)
+                        logging.info(f"Kopiert: {pdf_file} -> {new_filename}")
+                    except Exception as e:
+                        logging.error(f"Fehler beim Kopieren von {pdf_file}: {e}")
         
         PDFProcessor.save_extracted_info(output_txt_path, extracted_info_list)
 
